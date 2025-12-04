@@ -7,19 +7,20 @@ import (
 // CallOption configures a Call before it starts or extracts information from
 // a Call after it completes.
 type CallOption interface {
-	// before is called before the call is sent to any server.  If before
+	// before is called before the call is sent to any server. If before
 	// returns a non-nil error, the RPC fails with that error.
 	before(*callInfo) error
 
-	// after is called after the call has completed.  after cannot return an
+	// after is called after the call has completed. after cannot return an
 	// error, so any failures should be reported via output parameters.
 	after(*callInfo, *csAttempt)
 }
 
 type callInfo struct {
-	contentType  string
-	operation    string
-	pathTemplate string
+	contentType   string
+	operation     string
+	pathTemplate  string
+	headerCarrier *http.Header
 }
 
 // EmptyCallOption does not alter the Call configuration.
@@ -102,7 +103,12 @@ type HeaderCallOption struct {
 	header *http.Header
 }
 
-func (o HeaderCallOption) after(c *callInfo, cs *csAttempt) {
+func (o HeaderCallOption) before(c *callInfo) error {
+	c.headerCarrier = o.header
+	return nil
+}
+
+func (o HeaderCallOption) after(_ *callInfo, cs *csAttempt) {
 	if cs.res != nil && cs.res.Header != nil {
 		*o.header = cs.res.Header
 	}

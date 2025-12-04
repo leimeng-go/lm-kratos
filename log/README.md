@@ -8,7 +8,7 @@
 logger := log.NewStdLogger(os.Stdout)
 // fields & valuer
 logger = log.With(logger,
-    "service.name", "hellworld",
+    "service.name", "helloworld",
     "service.version", "v1.0.0",
     "ts", log.DefaultTimestamp,
     "caller", log.DefaultCaller,
@@ -42,6 +42,7 @@ log.Error("warn log")
 ```shell
 go get -u github.com/go-kratos/kratos/contrib/log/zap/v2
 ```
+
 ### logrus
 
 ```shell

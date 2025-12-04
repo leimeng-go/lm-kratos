@@ -17,21 +17,21 @@ func TestMarshalTimeStamp(t *testing.T) {
 		expect string
 	}{
 		{
-			input:  timestamppb.New(time.Date(2022, 1, 2, 3, 4, 5, 6, time.UTC)),
+			input:  timestamppb.New(time.Date(2022, 1, 2, 3, 4, 5, 6, time.Local)),
 			expect: "2022-01-02T03:04:05.000000006Z",
 		},
 		{
-			input:  timestamppb.New(time.Date(2022, 13, 1, 13, 61, 61, 100, time.UTC)),
+			input:  timestamppb.New(time.Date(2022, 13, 1, 13, 61, 61, 100, time.Local)),
 			expect: "2023-01-01T14:02:01.000000100Z",
 		},
 	}
 	for _, v := range tests {
-		content, err := marshalTimestamp(v.input.ProtoReflect())
+		got, err := marshalTimestamp(v.input.ProtoReflect())
 		if err != nil {
-			t.Errorf("expect %v,got %v", nil, err)
+			t.Fatal(err)
 		}
-		if got, want := content, v.expect; got != want {
-			t.Errorf("expect %v,got %v", want, got)
+		if want := v.expect; got != want {
+			t.Errorf("expect %v, got %v", want, got)
 		}
 	}
 }
@@ -59,12 +59,12 @@ func TestMarshalDuration(t *testing.T) {
 		},
 	}
 	for _, v := range tests {
-		content, err := marshalDuration(v.input.ProtoReflect())
+		got, err := marshalDuration(v.input.ProtoReflect())
 		if err != nil {
-			t.Errorf("expect %v,got %v", nil, err)
+			t.Fatal(err)
 		}
-		if got, want := content, v.expect; got != want {
-			t.Errorf("expect %v,got %v", want, got)
+		if want := v.expect; got != want {
+			t.Errorf("expect %s, got %s", want, got)
 		}
 	}
 }
@@ -84,12 +84,12 @@ func TestMarshalBytes(t *testing.T) {
 		},
 	}
 	for _, v := range tests {
-		content, err := marshalBytes(v.input)
+		got, err := marshalBytes(v.input)
 		if err != nil {
-			t.Errorf("expect %v,got %v", nil, err)
+			t.Fatal(err)
 		}
-		if got, want := content, v.expect; got != want {
-			t.Errorf("expect %v,got %v", want, got)
+		if want := v.expect; got != want {
+			t.Errorf("expect %v, got %v", want, got)
 		}
 	}
 }

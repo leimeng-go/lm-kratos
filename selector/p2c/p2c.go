@@ -2,7 +2,7 @@ package p2c
 
 import (
 	"context"
-	"math/rand"
+	"math/rand/v2"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,16 +13,16 @@ import (
 
 const (
 	forcePick = time.Second * 3
-	// Name is balancer name
+	// Name is p2c(Pick of 2 choices) balancer name
 	Name = "p2c"
 )
 
 var _ selector.Balancer = (*Balancer)(nil)
 
-// Option is random builder option.
+// Option is p2c builder option.
 type Option func(o *options)
 
-// options is random builder options
+// options is p2c builder options
 type options struct{}
 
 // New creates a p2c selector.
@@ -34,14 +34,14 @@ func New(opts ...Option) selector.Selector {
 type Balancer struct {
 	mu     sync.Mutex
 	r      *rand.Rand
-	picked int64
+	picked atomic.Bool
 }
 
 // choose two distinct nodes.
 func (s *Balancer) prePick(nodes []selector.WeightedNode) (nodeA selector.WeightedNode, nodeB selector.WeightedNode) {
 	s.mu.Lock()
-	a := s.r.Intn(len(nodes))
-	b := s.r.Intn(len(nodes) - 1)
+	a := s.r.IntN(len(nodes))
+	b := s.r.IntN(len(nodes) - 1)
 	s.mu.Unlock()
 	if b >= a {
 		b = b + 1
@@ -51,7 +51,7 @@ func (s *Balancer) prePick(nodes []selector.WeightedNode) (nodeA selector.Weight
 }
 
 // Pick pick a node.
-func (s *Balancer) Pick(ctx context.Context, nodes []selector.WeightedNode) (selector.WeightedNode, selector.DoneFunc, error) {
+func (s *Balancer) Pick(_ context.Context, nodes []selector.WeightedNode) (selector.WeightedNode, selector.DoneFunc, error) {
 	if len(nodes) == 0 {
 		return nil, nil, selector.ErrNoAvailable
 	}
@@ -71,9 +71,9 @@ func (s *Balancer) Pick(ctx context.Context, nodes []selector.WeightedNode) (sel
 
 	// If the failed node has never been selected once during forceGap, it is forced to be selected once
 	// Take advantage of forced opportunities to trigger updates of success rate and delay
-	if upc.PickElapsed() > forcePick && atomic.CompareAndSwapInt64(&s.picked, 0, 1) {
+	if upc.PickElapsed() > forcePick && s.picked.CompareAndSwap(false, true) {
+		defer s.picked.Store(false)
 		pc = upc
-		atomic.StoreInt64(&s.picked, 0)
 	}
 	done := pc.Pick()
 	return pc, done, nil
@@ -96,5 +96,5 @@ type Builder struct{}
 
 // Build creates Balancer
 func (b *Builder) Build() selector.Balancer {
-	return &Balancer{r: rand.New(rand.NewSource(time.Now().UnixNano()))}
+	return &Balancer{r: rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), 0))}
 }

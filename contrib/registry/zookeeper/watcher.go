@@ -21,10 +21,10 @@ type watcher struct {
 	conn   *zk.Conn
 	cancel context.CancelFunc
 
-	first uint32
-	// 前缀
+	first atomic.Bool
+	// prefix for ZooKeeper paths or keys (used for filtering or identifying watched nodes)
 	prefix string
-	// watch 的服务名
+	// the name of the service being watched in ZooKeeper
 	serviceName string
 }
 
@@ -37,23 +37,31 @@ func newWatcher(ctx context.Context, prefix, serviceName string, conn *zk.Conn) 
 
 func (w *watcher) watch(ctx context.Context) {
 	for {
-		// 每次 watch 只有一次有效期 所以循环 watch
+		// since a single watch is only valid for one event, we need to loop to continue watching
 		_, _, ch, err := w.conn.ChildrenW(w.prefix)
 		if err != nil {
-			w.event <- zk.Event{Err: err}
+			// If the target service node has not been created
+			if errors.Is(err, zk.ErrNoNode) {
+				// Add watcher for the node exists
+				_, _, ch, err = w.conn.ExistsW(w.prefix)
+			}
+			if err != nil {
+				w.event <- zk.Event{Err: err}
+				continue
+			}
 		}
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			w.event <- <-ch
+		case ev := <-ch:
+			w.event <- ev
 		}
 	}
 }
 
 func (w *watcher) Next() ([]*registry.ServiceInstance, error) {
-	// todo 如果多处调用 next 可能会导致多实例信息不同步
-	if atomic.CompareAndSwapUint32(&w.first, 0, 1) {
+	// TODO: multiple calls to Next may lead to inconsistent service instance information
+	if w.first.CompareAndSwap(false, true) {
 		return w.getServices()
 	}
 	select {
@@ -92,7 +100,7 @@ func (w *watcher) getServices() ([]*registry.ServiceInstance, error) {
 			return nil, err
 		}
 
-		// 与 watch 的服务名不同 则跳过
+		// if the service name of the retrieved instance does not match the watcher's service name, skip it
 		if item.Name != w.serviceName {
 			continue
 		}

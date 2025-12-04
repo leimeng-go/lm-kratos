@@ -14,17 +14,14 @@ import (
 )
 
 // EncodeValues encode a message into url values.
-func EncodeValues(msg interface{}) (url.Values, error) {
+func EncodeValues(msg any) (url.Values, error) {
 	if msg == nil || (reflect.ValueOf(msg).Kind() == reflect.Ptr && reflect.ValueOf(msg).IsNil()) {
 		return url.Values{}, nil
 	}
 	if v, ok := msg.(proto.Message); ok {
 		u := make(url.Values)
 		err := encodeByField(u, "", v.ProtoReflect())
-		if err != nil {
-			return nil, err
-		}
-		return u, nil
+		return u, err
 	}
 	return encoder.Encode(msg)
 }
@@ -46,10 +43,8 @@ func encodeByField(u url.Values, path string, m protoreflect.Message) (finalErr 
 			newPath = path + "." + key
 		}
 		if of := fd.ContainingOneof(); of != nil {
-			if f := m.WhichOneof(of); f != nil {
-				if f != fd {
-					return true
-				}
+			if f := m.WhichOneof(of); f != nil && f != fd {
+				return true
 			}
 		}
 		switch {
@@ -58,38 +53,36 @@ func encodeByField(u url.Values, path string, m protoreflect.Message) (finalErr 
 				list, err := encodeRepeatedField(fd, v.List())
 				if err != nil {
 					finalErr = err
-					return false
 				}
-				u[newPath] = list
+				for _, item := range list {
+					u.Add(newPath, item)
+				}
 			}
 		case fd.IsMap():
 			if v.Map().Len() > 0 {
 				m, err := encodeMapField(fd, v.Map())
 				if err != nil {
 					finalErr = err
-					return false
 				}
 				for k, value := range m {
-					u[fmt.Sprintf("%s[%s]", newPath, k)] = []string{value}
+					u.Set(fmt.Sprintf("%s[%s]", newPath, k), value)
 				}
 			}
 		case (fd.Kind() == protoreflect.MessageKind) || (fd.Kind() == protoreflect.GroupKind):
 			value, err := encodeMessage(fd.Message(), v)
 			if err == nil {
-				u[newPath] = []string{value}
+				u.Set(newPath, value)
 				return true
 			}
 			if err = encodeByField(u, newPath, v.Message()); err != nil {
 				finalErr = err
-				return false
 			}
 		default:
 			value, err := EncodeField(fd, v)
 			if err != nil {
 				finalErr = err
-				return false
 			}
-			u[newPath] = []string{value}
+			u.Set(newPath, value)
 		}
 		return true
 	})
@@ -111,7 +104,7 @@ func encodeRepeatedField(fieldDescriptor protoreflect.FieldDescriptor, list prot
 func encodeMapField(fieldDescriptor protoreflect.FieldDescriptor, mp protoreflect.Map) (map[string]string, error) {
 	m := make(map[string]string)
 	mp.Range(func(k protoreflect.MapKey, v protoreflect.Value) bool {
-		key, err := EncodeField(fieldDescriptor.MapValue(), k.Value())
+		key, err := EncodeField(fieldDescriptor.MapKey(), k.Value())
 		if err != nil {
 			return false
 		}
@@ -137,14 +130,12 @@ func EncodeField(fieldDescriptor protoreflect.FieldDescriptor, value protoreflec
 		}
 		desc := fieldDescriptor.Enum().Values().ByNumber(value.Enum())
 		return string(desc.Name()), nil
-	case protoreflect.StringKind:
-		return value.String(), nil
 	case protoreflect.BytesKind:
 		return base64.URLEncoding.EncodeToString(value.Bytes()), nil
 	case protoreflect.MessageKind, protoreflect.GroupKind:
 		return encodeMessage(fieldDescriptor.Message(), value)
 	default:
-		return fmt.Sprint(value.Interface()), nil
+		return value.String(), nil
 	}
 }
 
@@ -200,23 +191,26 @@ func EncodeFieldMask(m protoreflect.Message) (query string) {
 	return
 }
 
-// JSONCamelCase converts a snake_case identifier to a camelCase identifier,
+// jsonCamelCase converts a snake_case identifier to a camelCase identifier,
 // according to the protobuf JSON specification.
 // references: https://github.com/protocolbuffers/protobuf-go/blob/master/encoding/protojson/well_known_types.go#L842
 func jsonCamelCase(s string) string {
-	var b []byte
-	var wasUnderscore bool
-	for i := 0; i < len(s); i++ { // proto identifiers are always ASCII
+	var builder strings.Builder
+	builder.Grow(len(s))
+
+	wasUnderscore := false
+	for i := 0; i < len(s); i++ { // proto identifiers are always ASCIIS
 		c := s[i]
 		if c != '_' {
 			if wasUnderscore && isASCIILower(c) {
 				c -= 'a' - 'A' // convert to uppercase
 			}
-			b = append(b, c)
+			builder.WriteByte(c)
 		}
 		wasUnderscore = c == '_'
 	}
-	return string(b)
+
+	return builder.String()
 }
 
 func isASCIILower(c byte) bool {

@@ -87,7 +87,7 @@ func TestHTTP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			bf.Reset()
-			next := func(ctx context.Context, req interface{}) (interface{}, error) {
+			next := func(context.Context, any) (any, error) {
 				return "reply", test.err
 			}
 			next = test.kind(logger)(next)
@@ -105,19 +105,49 @@ type (
 	dummyStringer struct {
 		field string
 	}
+	dummyStringerRedacter struct {
+		field string
+	}
 )
 
 func (d *dummyStringer) String() string {
 	return "my value"
 }
 
-func TestExtractArgs(t *testing.T) {
-	if extractArgs(&dummyStringer{field: ""}) != "my value" {
-		t.Errorf(`The stringified dummyStringer structure must be equal to "my value", %v given`, extractArgs(&dummyStringer{field: ""}))
-	}
+func (d *dummyStringerRedacter) String() string {
+	return "my value"
+}
 
-	if extractArgs(&dummy{field: "value"}) != "&{field:value}" {
-		t.Errorf(`The stringified dummy structure must be equal to "&{field:value}", %v given`, extractArgs(&dummy{field: "value"}))
+func (d *dummyStringerRedacter) Redact() string {
+	return "my value redacted"
+}
+
+func TestExtractArgs(t *testing.T) {
+	tests := []struct {
+		name     string
+		req      any
+		expected string
+	}{
+		{
+			name:     "dummyStringer",
+			req:      &dummyStringer{field: ""},
+			expected: "my value",
+		}, {
+			name:     "dummy",
+			req:      &dummy{field: "value"},
+			expected: "&{field:value}",
+		}, {
+			name:     "dummyStringerRedacter",
+			req:      &dummyStringerRedacter{field: ""},
+			expected: "my value redacted",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if value := extractArgs(test.req); value != test.expected {
+				t.Errorf(`The stringified %s structure must be equal to "%s", %v given`, test.name, test.expected, value)
+			}
+		})
 	}
 }
 
@@ -145,5 +175,61 @@ func TestExtractError(t *testing.T) {
 				t.Errorf("want: %s, got: %s", test.wantErrStr, errStr)
 			}
 		})
+	}
+}
+
+type extractKeyValues [][]any
+
+func (l *extractKeyValues) Log(_ log.Level, kv ...any) error { *l = append(*l, kv); return nil }
+
+func TestServer_CallerPath(t *testing.T) {
+	var a extractKeyValues
+	logger := log.With(&a, "caller", log.Caller(5)) // report where the helper was called
+
+	// make sure the caller is same
+	sameCaller := func(fn middleware.Handler) { _, _ = fn(context.Background(), nil) }
+
+	// caller: [... log inside middleware, fn(context.Background(), nil)]
+	h := func(context.Context, any) (a any, e error) { return }
+	h = Server(logger)(h)
+	sameCaller(h)
+
+	// caller: [... helper.Info("foo"), fn(context.Background(), nil)]
+	helper := log.NewHelper(logger)
+	sameCaller(func(context.Context, any) (a any, e error) { helper.Info("foo"); return })
+
+	t.Log(a[0])
+	t.Log(a[1])
+	if a[0][0] != "caller" || a[1][0] != "caller" {
+		t.Fatal("caller not found")
+	}
+	if a[0][1] != a[1][1] {
+		t.Fatalf("middleware should have the same caller as log.Helper. middleware: %s, helper: %s", a[0][1], a[1][1])
+	}
+}
+
+func TestClient_CallerPath(t *testing.T) {
+	var a extractKeyValues
+	logger := log.With(&a, "caller", log.Caller(5)) // report where the helper was called
+
+	// make sure the caller is same
+	sameCaller := func(fn middleware.Handler) { _, _ = fn(context.Background(), nil) }
+
+	// caller: [... log inside middleware, fn(context.Background(), nil)]
+	h := func(context.Context, any) (a any, e error) { return }
+	h = Client(logger)(h)
+	sameCaller(h)
+
+	// caller: [... helper.Info("foo"), fn(context.Background(), nil)]
+	helper := log.NewHelper(logger)
+	sameCaller(func(context.Context, any) (a any, e error) { helper.Info("foo"); return })
+
+	t.Log(a[0])
+	t.Log(a[1])
+	if a[0][0] != "caller" || a[1][0] != "caller" {
+		t.Fatal("caller not found")
+	}
+	if a[0][1] != a[1][1] {
+		t.Fatalf("middleware should have the same caller as log.Helper. middleware: %s, helper: %s", a[0][1], a[1][1])
 	}
 }
