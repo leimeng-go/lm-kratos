@@ -7,7 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/go-kratos/kratos/v2/registry"
+	"github.com/go-kratos/kratos/v3/registry"
 )
 
 func filterInstancesByZone(ins *disInstancesInfo, zone string) []*registry.ServiceInstance {
@@ -67,7 +67,7 @@ func (w *watcher) Next() ([]*registry.ServiceInstance, error) {
 		return nil, fmt.Errorf("watch context canceled: %v", w.cancelCtx.Err())
 	}
 
-	ctx, cancel := context.WithTimeout(context.TODO(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	ins, ok := w.resolve.fetch(ctx)

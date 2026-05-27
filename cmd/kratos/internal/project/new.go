@@ -9,7 +9,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/fatih/color"
 
-	"github.com/go-kratos/kratos/cmd/kratos/v2/internal/base"
+	"github.com/go-kratos/kratos/cmd/kratos/v3/internal/base"
 )
 
 // Project is a project template.
@@ -47,7 +47,9 @@ func (p *Project) New(ctx context.Context, dir string, layout string, branch str
 		filepath.Join(to, "cmd", p.Name),
 	)
 	if e != nil {
-		return e
+		if !os.IsNotExist(e) {
+			return e
+		}
 	}
 	base.Tree(to, dir)
 

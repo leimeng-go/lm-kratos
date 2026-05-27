@@ -13,7 +13,7 @@ import (
 	"github.com/go-resty/resty/v2"
 	"github.com/pkg/errors"
 
-	"github.com/go-kratos/kratos/v2/log"
+	"github.com/go-kratos/kratos/v3/log"
 )
 
 type Discovery struct {
@@ -162,7 +162,7 @@ func (d *Discovery) resolveBuild(appID string) *Resolve {
 		}
 	}
 
-	log.Debugf("Discovery: AddWatch(%s) already watch(%v)", appID, ok)
+	log.Debug("Discovery: AddWatch already watched", "appid", appID, "already_watch", ok)
 	d.once.Do(func() {
 		go d.serverProc()
 	})
@@ -173,7 +173,6 @@ func (d *Discovery) serverProc() {
 	defer log.Debug("Discovery serverProc quit")
 
 	var (
-		retry  int
 		ctx    context.Context
 		cancel context.CancelFunc
 	)
@@ -204,10 +203,8 @@ func (d *Discovery) serverProc() {
 				continue
 			}
 			time.Sleep(time.Second)
-			retry++
 			continue
 		}
-		retry = 0
 		d.broadcast(apps)
 	}
 }
@@ -244,8 +241,7 @@ func (d *Discovery) renew(ctx context.Context, ins *discoveryInstance) (err erro
 		SetResult(&res).
 		Post(uri); err != nil {
 		d.switchNode()
-		log.Errorf("Discovery: renew client.Get(%v) env(%s) appid(%s) hostname(%s) error(%v)",
-			uri, c.Env, ins.AppID, c.Host, err)
+		log.Error("Discovery: renew client.Get failed", "uri", uri, "env", c.Env, "appid", ins.AppID, "hostname", c.Host, "error", err)
 		return
 	}
 
@@ -258,10 +254,7 @@ func (d *Discovery) renew(ctx context.Context, ins *discoveryInstance) (err erro
 			return
 		}
 
-		log.Errorf(
-			"Discovery: renew client.Get(%v) env(%s) appid(%s) hostname(%s) code(%v)",
-			uri, c.Env, ins.AppID, c.Host, res.Code,
-		)
+		log.Error("Discovery: renew client.Get returned code", "uri", uri, "env", c.Env, "appid", ins.AppID, "hostname", c.Host, "code", res.Code)
 	}
 
 	return
@@ -281,13 +274,12 @@ func (d *Discovery) cancel(ins *discoveryInstance) (err error) {
 	// request
 	// send request to Discovery server.
 	if _, err = d.httpClient.R().
-		SetContext(context.TODO()).
+		SetContext(context.Background()).
 		SetQueryParamsFromValues(p).
 		SetResult(&res).
 		Post(uri); err != nil {
 		d.switchNode()
-		log.Errorf("Discovery cancel client.Get(%v) env(%s) appid(%s) hostname(%s) error(%v)",
-			uri, config.Env, ins.AppID, config.Host, err)
+		log.Error("Discovery: cancel client.Get failed", "uri", uri, "env", config.Env, "appid", ins.AppID, "hostname", config.Host, "error", err)
 		return
 	}
 
@@ -297,8 +289,7 @@ func (d *Discovery) cancel(ins *discoveryInstance) (err error) {
 			return nil
 		}
 
-		log.Warnf("Discovery cancel client.Get(%v) env(%s) appid(%s) hostname(%s) code(%v)",
-			uri, config.Env, ins.AppID, config.Host, res.Code)
+		log.Warn("Discovery: cancel client.Get returned code", "uri", uri, "env", config.Env, "appid", ins.AppID, "hostname", config.Host, "code", res.Code)
 		err = fmt.Errorf("ErrorCode: %d", res.Code)
 		return
 	}
@@ -389,13 +380,13 @@ func (d *Discovery) polls(ctx context.Context) (apps map[string]*disInstancesInf
 		SetQueryParamsFromValues(p).
 		SetResult(res).Get(uri); err != nil {
 		d.switchNode()
-		log.Errorf("Discovery: client.Get(%s) error(%+v)", reqURI, err)
+		log.Error("Discovery: client.Get failed", "uri", reqURI, "error", err)
 		return nil, err
 	}
 
 	if res.Code != _codeOK {
 		if res.Code != _codeNotModified {
-			log.Errorf("Discovery: client.Get(%s) get error code(%d)", reqURI, res.Code)
+			log.Error("Discovery: client.Get returned code", "uri", reqURI, "code", res.Code)
 		}
 		err = fmt.Errorf("discovery.polls failed ErrCode: %d", res.Code)
 		return
@@ -404,12 +395,12 @@ func (d *Discovery) polls(ctx context.Context) (apps map[string]*disInstancesInf
 	for _, app := range res.Data {
 		if app.LastTs == 0 {
 			err = ErrServerError
-			log.Errorf("Discovery: client.Get(%s) latest_timestamp is 0, instances:(%+v)", reqURI, res.Data)
+			log.Error("Discovery: client.Get latest_timestamp is 0", "uri", reqURI, "instances", res.Data)
 			return
 		}
 	}
 
-	log.Debugf("Discovery: successfully polls(%s) instances (%+v)", reqURI, res.Data)
+	log.Debug("Discovery: successfully polls", "uri", reqURI, "instances", res.Data)
 	apps = res.Data
 	return
 }
@@ -444,22 +435,6 @@ func (r *Resolve) fetch(_ context.Context) (ins *disInstancesInfo, ok bool) {
 		for zone, in := range appIns.Instances {
 			ins.Instances[zone] = in
 		}
-		//if r.opt.Filter != nil {
-		//	ins.Instances = r.opt.Filter(appIns.Instances)
-		//} else {
-		//	ins.Instances = make(map[string][]*discoveryInstance)
-		//	for zone, in := range appIns.Instances {
-		//		ins.Instances[zone] = in
-		//	}
-		//}
-		//if r.opt.scheduler != nil {
-		//	ins.Instances[r.opt.ClientZone] = r.opt.scheduler(ins)
-		//}
-		//if r.opt.Subset != nil && r.opt.SubsetSize != 0 {
-		//	for zone, inss := range ins.Instances {
-		//		ins.Instances[zone] = r.opt.Subset(inss, r.opt.SubsetSize)
-		//	}
-		//}
 	}
 	return
 }

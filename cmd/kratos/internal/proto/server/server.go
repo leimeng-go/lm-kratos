@@ -33,14 +33,14 @@ func run(_ *cobra.Command, args []string) {
 	}
 	reader, err := os.Open(args[0])
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to open proto file %q: %v", args[0], err)
 	}
 	defer reader.Close()
 
 	parser := proto.NewParser(reader)
 	definition, err := parser.Parse()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to parse proto file %q: %v", args[0], err)
 	}
 
 	var (
@@ -64,7 +64,7 @@ func run(_ *cobra.Command, args []string) {
 					continue
 				}
 				cs.Methods = append(cs.Methods, &Method{
-					Service: serviceName(s.Name), Name: serviceName(r.Name), Request: parametersName(r.RequestType),
+					Service: serviceName(s.Name), Name: rpcName(r.Name), Request: parametersName(r.RequestType),
 					Reply: parametersName(r.ReturnsType), Type: getMethodType(r.StreamsRequest, r.StreamsReturns),
 				})
 			}
@@ -83,10 +83,10 @@ func run(_ *cobra.Command, args []string) {
 		}
 		b, err := s.execute()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Failed to generate server implementation for %s: %v", s.Service, err)
 		}
 		if err := os.WriteFile(to, b, 0o644); err != nil {
-			log.Fatal(err)
+			log.Fatalf("Failed to write server file %q: %v", to, err)
 		}
 		fmt.Println(to)
 	}
@@ -110,6 +110,10 @@ func parametersName(name string) string {
 }
 
 func serviceName(name string) string {
+	return strings.TrimSuffix(toUpperCamelCase(strings.Split(name, ".")[0]), "Service")
+}
+
+func rpcName(name string) string {
 	return toUpperCamelCase(strings.Split(name, ".")[0])
 }
 

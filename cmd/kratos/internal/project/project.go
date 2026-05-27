@@ -10,10 +10,16 @@ import (
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 
-	"github.com/go-kratos/kratos/cmd/kratos/v2/internal/base"
+	"github.com/go-kratos/kratos/cmd/kratos/v3/internal/base"
 )
+
+var projects = map[string]string{
+	"service": "https://github.com/go-kratos/kratos-layout.git",
+	"admin":   "https://github.com/go-kratos/kratos-admin.git",
+}
 
 // CmdNew represents the new command.
 var CmdNew = &cobra.Command{
@@ -24,18 +30,14 @@ var CmdNew = &cobra.Command{
 }
 
 var (
-	repoURL string
-	branch  string
-	timeout string
 	nomod   bool
+	repo    string
+	branch  string
+	timeout = "60s"
 )
 
 func init() {
-	if repoURL = os.Getenv("KRATOS_LAYOUT_REPO"); repoURL == "" {
-		repoURL = "https://github.com/go-kratos/kratos-layout.git"
-	}
-	timeout = "60s"
-	CmdNew.Flags().StringVarP(&repoURL, "repo-url", "r", repoURL, "layout repo")
+	CmdNew.Flags().StringVarP(&repo, "repo", "r", repo, "custom repo url")
 	CmdNew.Flags().StringVarP(&branch, "branch", "b", branch, "repo branch")
 	CmdNew.Flags().StringVarP(&timeout, "timeout", "t", timeout, "time out")
 	CmdNew.Flags().BoolVarP(&nomod, "nomod", "", nomod, "retain go mod")
@@ -68,6 +70,16 @@ func run(_ *cobra.Command, args []string) {
 	projectName, workingDir := processProjectParams(name, wd)
 	p := &Project{Name: projectName}
 	done := make(chan error, 1)
+	var repoURL string
+	if repo != "" {
+		repoURL = repo
+	} else {
+		repoURL, err = selectRepo()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\033[31mERROR: failed to select repo(%s)\033[m\n", err.Error())
+			return
+		}
+	}
 	go func() {
 		if !nomod {
 			done <- p.New(ctx, workingDir, repoURL, branch)
@@ -81,7 +93,7 @@ func run(_ *cobra.Command, args []string) {
 
 		packagePath, e := filepath.Rel(projectRoot, filepath.Join(workingDir, projectName))
 		if e != nil {
-			done <- fmt.Errorf("🚫 failed to get relative path: %v", err)
+			done <- fmt.Errorf("🚫 failed to get relative path: %v", e)
 			return
 		}
 		packagePath = strings.ReplaceAll(packagePath, "\\", "/")
@@ -147,4 +159,47 @@ func getgomodProjectRoot(dir string) string {
 func gomodIsNotExistIn(dir string) bool {
 	_, e := os.Stat(filepath.Join(dir, "go.mod"))
 	return os.IsNotExist(e)
+}
+
+func selectRepo() (string, error) {
+	var (
+		choice    string
+		customURL string
+	)
+	form := huh.NewForm(
+		// 1) Select group (always visible)
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Select a template").
+				Options(
+					huh.NewOption("Service", "service"),
+					huh.NewOption("Admin", "admin"),
+					huh.NewOption("Custom (enter repo URL)", "custom"),
+				).
+				Value(&choice),
+		),
+		// 2) Input group (only visible when choice == "custom")
+		huh.NewGroup(
+			huh.NewInput().
+				Title("Enter custom repository URL").
+				Placeholder("https://github.com/owner/repo.git").
+				Value(&customURL).
+				Validate(func(s string) error {
+					s = strings.TrimSpace(s)
+					if s == "" {
+						return fmt.Errorf("repo URL cannot be empty")
+					}
+					return nil
+				}),
+		).WithHideFunc(func() bool {
+			return choice != "custom"
+		}),
+	)
+	if err := form.Run(); err != nil {
+		panic(err)
+	}
+	if choice == "custom" {
+		return strings.TrimSpace(customURL), nil
+	}
+	return projects[choice], nil
 }

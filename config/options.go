@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-kratos/kratos/v2/encoding"
+	"github.com/go-kratos/kratos/v3/encoding"
 )
 
 // Decoder is config decoder.
@@ -27,6 +27,11 @@ type options struct {
 	resolver Resolver
 	merge    Merge
 }
+
+const (
+	boolTrueValue  = "true"
+	boolFalseValue = "false"
+)
 
 // WithSource with config source.
 func WithSource(s ...Source) Option {
@@ -157,7 +162,7 @@ func convertToType(input string) any {
 	}
 
 	// Try converting to bool
-	if input == "true" || input == "false" {
+	if input == boolTrueValue || input == boolFalseValue {
 		b, _ := strconv.ParseBool(input)
 		return b
 	}
@@ -178,9 +183,11 @@ func convertToType(input string) any {
 	return input
 }
 
+// placeholderRegexp matches ${...} placeholders in config value
+var placeholderRegexp = regexp.MustCompile(`\${(.*?)}`)
+
 func expand(s string, mapping func(string) string, toType bool) any {
-	r := regexp.MustCompile(`\${(.*?)}`)
-	re := r.FindAllStringSubmatch(s, -1)
+	re := placeholderRegexp.FindAllStringSubmatch(s, -1)
 	var ct any
 	for _, i := range re {
 		if len(i) == 2 { //nolint:mnd

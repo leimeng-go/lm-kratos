@@ -4,8 +4,8 @@ import (
 	"context"
 	"math/rand/v2"
 
-	"github.com/go-kratos/kratos/v2/selector"
-	"github.com/go-kratos/kratos/v2/selector/node/direct"
+	"github.com/go-kratos/kratos/v3/selector"
+	"github.com/go-kratos/kratos/v3/selector/node/direct"
 )
 
 const (
@@ -13,7 +13,7 @@ const (
 	Name = "random"
 )
 
-var _ selector.Balancer = (*Balancer)(nil) // Name is balancer name
+var _ selector.Balancer = (*Balancer)(nil)
 
 // Option is random builder option.
 type Option func(o *options)

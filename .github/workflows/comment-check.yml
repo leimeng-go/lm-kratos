@@ -21,7 +21,7 @@ jobs:
       EXCLUDE_FILES: ".md .txt .html .css .min.js .mdx"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
@@ -133,7 +133,7 @@ jobs:
       
       - name: Find Comment
         if: failure() && github.event_name != 'workflow_dispatch'
-        uses: peter-evans/find-comment@v3.1.0
+        uses: peter-evans/find-comment@v4.0.0
         id: fc
         with:
           issue-number: ${{ github.event.pull_request.number }}
@@ -142,7 +142,7 @@ jobs:
 
       - name: Comment on PR if errors found
         if: failure() && github.event_name != 'workflow_dispatch' # This step runs only if the previous step fails
-        uses: peter-evans/create-or-update-comment@v4.0.0
+        uses: peter-evans/create-or-update-comment@v5.0.0
         with:
           token: ${{ secrets.BOT_GITHUB_TOKEN }}
           issue-number: ${{ github.event.pull_request.number }}

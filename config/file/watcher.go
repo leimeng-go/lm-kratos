@@ -4,10 +4,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/go-kratos/kratos/v2/config"
+	"github.com/go-kratos/kratos/v3/config"
 )
 
 var _ config.Watcher = (*watcher)(nil)
@@ -37,7 +38,7 @@ func (w *watcher) Next() ([]*config.KeyValue, error) {
 	case <-w.ctx.Done():
 		return nil, w.ctx.Err()
 	case event := <-w.fw.Events:
-		if event.Op == fsnotify.Rename {
+		if event.Has(fsnotify.Rename) {
 			if _, err := os.Stat(event.Name); err == nil || os.IsExist(err) {
 				if err := w.fw.Add(event.Name); err != nil {
 					return nil, err
@@ -52,6 +53,7 @@ func (w *watcher) Next() ([]*config.KeyValue, error) {
 		if fi.IsDir() {
 			path = filepath.Join(w.f.path, filepath.Base(event.Name))
 		}
+		time.Sleep(time.Millisecond)
 		kv, err := w.f.loadFile(path)
 		if err != nil {
 			return nil, err

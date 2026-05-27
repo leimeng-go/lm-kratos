@@ -1,16 +1,15 @@
 package opensergo
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"strconv"
-	"time"
 
 	v1 "github.com/opensergo/opensergo-go/proto/service_contract/v1"
-	"golang.org/x/net/context"
 	"google.golang.org/genproto/googleapis/api/annotations"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -18,7 +17,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 
-	"github.com/go-kratos/kratos/v2"
+	"github.com/go-kratos/kratos/v3"
 )
 
 type Option func(*options)
@@ -63,13 +62,11 @@ func New(opts ...Option) (*OpenSergo, error) {
 	for _, o := range opts {
 		o(&opt)
 	}
-	dialCtx := context.Background()
-	dialCtx, cancel := context.WithTimeout(dialCtx, time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(dialCtx, opt.Endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(opt.Endpoint, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
+	conn.Connect()
 	return &OpenSergo{
 		mdClient: v1.NewMetadataServiceClient(conn),
 	}, nil

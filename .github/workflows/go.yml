@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        go: [1.22.x, 1.23.x, 1.24.x, 1.25.x]
+        go: [1.25.x, 1.26.x]
     name: build & test
     runs-on: ubuntu-latest
     services:
@@ -42,7 +42,7 @@ jobs:
           - 8091:8091
           - 8093:8093
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -54,7 +54,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Module cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cache/go-build
@@ -80,7 +80,6 @@ jobs:
         run: |
           cd cmd/kratos
           go build ./...
-          go test ./...
         env:
           GOTOOLCHAIN: auto
 

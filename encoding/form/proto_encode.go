@@ -15,7 +15,7 @@ import (
 
 // EncodeValues encode a message into url values.
 func EncodeValues(msg any) (url.Values, error) {
-	if msg == nil || (reflect.ValueOf(msg).Kind() == reflect.Ptr && reflect.ValueOf(msg).IsNil()) {
+	if msg == nil || (reflect.ValueOf(msg).Kind() == reflect.Pointer && reflect.ValueOf(msg).IsNil()) {
 		return url.Values{}, nil
 	}
 	if v, ok := msg.(proto.Message); ok {
@@ -65,7 +65,7 @@ func encodeByField(u url.Values, path string, m protoreflect.Message) (finalErr 
 					finalErr = err
 				}
 				for k, value := range m {
-					u.Set(fmt.Sprintf("%s[%s]", newPath, k), value)
+					u.Set(newPath+"["+k+"]", value)
 				}
 			}
 		case (fd.Kind() == protoreflect.MessageKind) || (fd.Kind() == protoreflect.GroupKind):
